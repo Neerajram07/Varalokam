@@ -1,0 +1,48 @@
+{
+    "easy": [
+        "cat", "dog", "sun", "moon", "tree", "house", "car", "fish", "bird", "star",
+        "ball", "book", "door", "fire", "rain", "cake", "hat", "shoe", "boat", "bell",
+        "key", "bed", "cup", "eye", "egg", "ice", "pen", "pig", "toy", "web",
+        "apple", "baby", "bear", "bone", "bowl", "box", "bread", "bus", "chair", "clock",
+        "cloud", "corn", "cow", "crown", "drum", "duck", "fan", "flag", "flower", "fork",
+        "frog", "gift", "glass", "globe", "gold", "grass", "heart", "hill", "horn", "horse",
+        "king", "kite", "knife", "lamp", "leaf", "lion", "lock", "map", "milk", "nail",
+        "nose", "nut", "owl", "park", "pear", "phone", "pie", "pool", "queen", "rice",
+        "ring", "road", "rock", "rope", "rose", "salt", "sand", "seed", "ship", "snow",
+        "sock", "soup", "stem", "stone", "tent", "tiger", "toast", "tooth", "train", "wall",
+        "water", "whale", "wheel", "wind", "wing", "wolf", "worm", "yarn"
+    ],
+    "medium": [
+        "guitar", "rocket", "castle", "dragon", "pirate", "wizard", "zombie", "volcano",
+        "unicorn", "penguin", "dolphin", "rainbow", "diamond", "compass", "anchor", "bridge",
+        "candle", "desert", "forest", "garden", "island", "jungle", "knight", "museum",
+        "palace", "planet", "rabbit", "spider", "tunnel", "wallet", "camera", "laptop",
+        "mirror", "pillow", "puzzle", "shadow", "shield", "skiing", "sunset", "temple",
+        "throne", "trophy", "violin", "window", "airport", "balloon", "battery", "blanket",
+        "cabinet", "cartoon", "chicken", "coconut", "curtain", "dentist", "earring", "eclipse",
+        "factory", "feather", "fishing", "giraffe", "gorilla", "hamster", "iceberg", "igloo",
+        "jacuzzi", "lantern", "mailbox", "monster", "morning", "necklace", "octopus", "pancake",
+        "parrot", "peacock", "popcorn", "pretzel", "pyramid", "quicksand", "raccoon", "sailboat",
+        "scarecrow", "snowman", "stadium", "staircase", "surfing", "teacher", "tornado",
+        "treasure", "trumpet", "vampire", "village", "waffle", "warrior", "whistle", "windmill",
+        "mechanic", "fireworks", "jellyfish", "mosquito", "mushroom", "notebook"
+    ],
+    "hard": [
+        "astronaut", "parachute", "telescope", "submarine", "earthquake", "butterfly",
+        "chandelier", "trampoline", "skateboard", "lighthouse", "waterfall", "snowflake",
+        "avalanche", "chameleon", "porcupine", "champagne", "xylophone", "blueprint",
+        "labyrinth", "nightmare", "boomerang", "microphone", "binoculars", "calculator",
+        "fireplace", "caterpillar", "helicopter", "alligator", "ambulance", "aquarium",
+        "barricade", "basketball", "blacksmith", "broccoli", "bumblebee", "camouflage",
+        "cardboard", "centipede", "clockwork", "dandelion", "dragonfly", "drumstick",
+        "escalator", "fingertip", "flashlight", "footprint", "gladiator", "grasshopper",
+        "guillotine", "handshake", "harmonica", "horseshoe", "hurricane", "invisible",
+        "jackrabbit", "jellybean", "lawnmower", "lemonade", "limousine", "marshmallow",
+        "moustache", "nightclub", "operation", "orchestra", "pineapple", "policeman",
+        "raspberry", "saxophone", "sleepwalk", "snowboard", "spaghetti", "spotlight",
+        "sprinkler", "stampede", "stargazer", "stopwatch", "strawberry", "sunflower",
+        "swordfish", "tarantula", "tightrope", "toothpaste", "treadmill", "typewriter",
+        "underwear", "wallpaper", "watermelon", "whirlpool", "wrestling", "zigzag",
+        "accordion", "backstroke", "ballerina", "blackberry", "bulldozer"
+    ]
+}

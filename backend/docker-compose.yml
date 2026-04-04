@@ -1,0 +1,53 @@
+version: "3.8"
+
+services:
+  # ── Game Server ─────────────────────────────────────────
+  app:
+    build: .
+    container_name: varalokam-server
+    ports:
+      - "8080:8080"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8080
+      - DEBUG=true
+      - CORS_ORIGINS=*
+      - REDIS_URL=redis://redis:6379/0
+      - AUTH_ENABLED=false
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      # Mount source for hot-reload during development
+      - ./src:/app/src:ro
+
+  # ── Redis (Game State) ─────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: varalokam-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+
+  # ── DynamoDB Local (for development) ───────────────────
+  dynamodb-local:
+    image: amazon/dynamodb-local:latest
+    container_name: varalokam-dynamodb
+    ports:
+      - "8000:8000"
+    command: "-jar DynamoDBLocal.jar -sharedDb -dbPath /data"
+    volumes:
+      - dynamodb_data:/data
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+  dynamodb_data:

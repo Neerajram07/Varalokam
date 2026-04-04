@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Varalokam — Socket.IO Test Client</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: #0f0f23;
+            color: #e0e0e0;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        h1 { color: #7c3aed; margin-bottom: 20px; }
+        h2 { color: #a78bfa; margin: 15px 0 8px; font-size: 1.1rem; }
+        .container { max-width: 900px; margin: 0 auto; }
+        .panel {
+            background: #1a1a2e;
+            border: 1px solid #2d2d44;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+        .row { display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+        input, select {
+            background: #16213e;
+            border: 1px solid #3d3d5c;
+            color: #e0e0e0;
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        button {
+            padding: 8px 18px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        button:hover { transform: translateY(-1px); }
+        .btn-primary { background: #7c3aed; color: white; }
+        .btn-success { background: #10b981; color: white; }
+        .btn-danger { background: #ef4444; color: white; }
+        .btn-warning { background: #f59e0b; color: #1a1a2e; }
+        #log {
+            background: #0a0a1a;
+            border: 1px solid #2d2d44;
+            border-radius: 8px;
+            padding: 12px;
+            height: 300px;
+            overflow-y: auto;
+            font-family: 'Cascadia Code', 'Fira Code', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        .log-info { color: #60a5fa; }
+        .log-success { color: #34d399; }
+        .log-error { color: #f87171; }
+        .log-event { color: #c084fc; }
+        .log-data { color: #94a3b8; }
+        .status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+        .status-connected { background: #064e3b; color: #34d399; }
+        .status-disconnected { background: #450a0a; color: #f87171; }
+        #roomInfo { color: #fbbf24; font-weight: 600; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎨 Varalokam — Test Client</h1>
+
+        <div class="panel">
+            <h2>Connection</h2>
+            <div class="row">
+                <input id="serverUrl" value="http://localhost:8080" placeholder="Server URL" style="width:250px">
+                <button class="btn-primary" onclick="connectToServer()">Connect</button>
+                <button class="btn-danger" onclick="disconnectFromServer()">Disconnect</button>
+                <span id="connectionStatus" class="status status-disconnected">Disconnected</span>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h2>Room</h2>
+            <div class="row">
+                <input id="playerName" value="TestPlayer" placeholder="Your Name">
+                <button class="btn-success" onclick="createRoom()">Create Room</button>
+                <input id="roomCode" placeholder="Room Code" style="width:120px">
+                <button class="btn-primary" onclick="joinRoom()">Join Room</button>
+                <button class="btn-danger" onclick="leaveRoom()">Leave Room</button>
+            </div>
+            <div id="roomInfo"></div>
+        </div>
+
+        <div class="panel">
+            <h2>Game</h2>
+            <div class="row">
+                <button class="btn-success" onclick="startGame()">Start Game</button>
+                <button class="btn-warning" onclick="playAgain()">Play Again</button>
+            </div>
+            <div class="row" id="wordChoicesRow" style="display:none">
+                <span style="color:#fbbf24">Choose a word:</span>
+                <div id="wordChoices"></div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h2>Chat</h2>
+            <div class="row">
+                <input id="chatInput" placeholder="Type a message or guess..." style="flex:1" onkeypress="if(event.key==='Enter')sendChat()">
+                <button class="btn-primary" onclick="sendChat()">Send</button>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h2>Event Log</h2>
+            <button class="btn-danger" onclick="clearLog()" style="margin-bottom:10px;font-size:12px">Clear</button>
+            <div id="log"></div>
+        </div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script>
+        let socket = null;
+
+        function log(msg, type = 'info') {
+            const el = document.getElementById('log');
+            const time = new Date().toLocaleTimeString();
+            el.innerHTML += `<div class="log-${type}">[${time}] ${msg}</div>`;
+            el.scrollTop = el.scrollHeight;
+        }
+
+        function clearLog() { document.getElementById('log').innerHTML = ''; }
+
+        function setStatus(connected) {
+            const el = document.getElementById('connectionStatus');
+            el.textContent = connected ? 'Connected' : 'Disconnected';
+            el.className = `status ${connected ? 'status-connected' : 'status-disconnected'}`;
+        }
+
+        function connectToServer() {
+            const url = document.getElementById('serverUrl').value;
+            if (socket) socket.disconnect();
+
+            log(`Connecting to ${url}...`);
+            socket = io(url, { transports: ['websocket', 'polling'] });
+
+            // ── Core events ──
+            socket.on('connect', () => { log('✅ Connected! SID: ' + socket.id, 'success'); setStatus(true); });
+            socket.on('disconnect', (reason) => { log('❌ Disconnected: ' + reason, 'error'); setStatus(false); });
+            socket.on('connect_error', (err) => { log('❌ Connection error: ' + err.message, 'error'); });
+            socket.on('connected', (data) => { log('🎨 ' + data.message, 'success'); });
+
+            // ── Room events ──
+            socket.on('room_created', (data) => {
+                log('🏠 Room created: ' + data.room.code, 'success');
+                document.getElementById('roomCode').value = data.room.code;
+                document.getElementById('roomInfo').textContent = `Room: ${data.room.code} | Players: ${data.room.players.length}`;
+            });
+            socket.on('room_joined', (data) => {
+                log('🏠 Joined room: ' + data.room.code, 'success');
+                document.getElementById('roomInfo').textContent = `Room: ${data.room.code} | Players: ${data.room.players.length}`;
+            });
+            socket.on('room_player_joined', (data) => {
+                log(`👋 ${data.player.name} joined (${data.playerCount} players)`, 'event');
+            });
+            socket.on('room_player_left', (data) => {
+                log(`👋 ${data.playerName} left (${data.playerCount} players)`, 'event');
+            });
+            socket.on('room_error', (data) => { log('❌ Room error: ' + data.message, 'error'); });
+            socket.on('room_left', () => { log('Left room', 'info'); document.getElementById('roomInfo').textContent = ''; });
+
+            // ── Game events ──
+            socket.on('game_started', (data) => {
+                log(`🎮 Game started! Round ${data.round}/${data.totalRounds}`, 'success');
+            });
+            socket.on('game_word_choices', (data) => {
+                log(`📝 Choose a word: ${data.words.join(', ')}`, 'event');
+                const row = document.getElementById('wordChoicesRow');
+                const div = document.getElementById('wordChoices');
+                row.style.display = 'flex';
+                div.innerHTML = data.words.map(w =>
+                    `<button class="btn-warning" onclick="selectWord('${w}')" style="margin:0 4px">${w}</button>`
+                ).join('');
+            });
+            socket.on('game_choosing_word', (data) => {
+                log(`✏️ ${data.drawerName} is choosing a word...`, 'event');
+            });
+            socket.on('game_turn_start', (data) => {
+                document.getElementById('wordChoicesRow').style.display = 'none';
+                if (data.isDrawer) {
+                    log(`🖌️ YOUR TURN! Draw: "${data.word}"`, 'success');
+                } else {
+                    log(`👀 ${data.drawerName} is drawing (${data.wordLength} letters): ${data.hint}`, 'event');
+                }
+            });
+            socket.on('game_correct_guess', (data) => {
+                log(`🎉 ${data.playerName} guessed it! (+${data.score}pts, total: ${data.totalScore})`, 'success');
+            });
+            socket.on('game_hint', (data) => {
+                log(`💡 Hint: ${data.hint}`, 'event');
+            });
+            socket.on('game_timer', (data) => {
+                // Only log every 20 seconds to avoid spam
+                if (data.remaining % 20 === 0) log(`⏱️ ${data.remaining}s remaining`, 'data');
+            });
+            socket.on('game_turn_end', (data) => {
+                log(`📋 Turn ended! Word was: "${data.word}"`, 'event');
+                log('Scores: ' + data.scoreboard.map(p => `${p.name}:${p.score}`).join(', '), 'data');
+            });
+            socket.on('game_round_change', (data) => {
+                log(`🔄 Round ${data.round}/${data.totalRounds}`, 'event');
+            });
+            socket.on('game_over', (data) => {
+                log(`🏆 GAME OVER! Winner: ${data.winner?.name} (${data.winner?.score}pts)`, 'success');
+            });
+            socket.on('game_error', (data) => { log('❌ ' + data.message, 'error'); });
+            socket.on('game_cancelled', (data) => { log('⚠️ ' + data.message, 'error'); });
+
+            // ── Chat events ──
+            socket.on('chat_message', (data) => {
+                log(`💬 ${data.playerName}: ${data.message}`, 'info');
+            });
+            socket.on('chat_system', (data) => {
+                log(`📢 ${data.message}`, 'event');
+            });
+        }
+
+        function disconnectFromServer() { if (socket) socket.disconnect(); }
+        function createRoom() { socket?.emit('room_create', { playerName: document.getElementById('playerName').value, avatar: '😀', settings: { maxPlayers: 8, rounds: 3, turnDuration: 80 } }); }
+        function joinRoom() { socket?.emit('room_join', { roomCode: document.getElementById('roomCode').value, playerName: document.getElementById('playerName').value, avatar: '🎮' }); }
+        function leaveRoom() { socket?.emit('room_leave'); }
+        function startGame() { socket?.emit('game_start'); }
+        function playAgain() { socket?.emit('game_play_again'); }
+        function selectWord(word) { socket?.emit('game_word_selected', { word }); document.getElementById('wordChoicesRow').style.display = 'none'; }
+        function sendChat() { const input = document.getElementById('chatInput'); socket?.emit('chat_message', { message: input.value }); input.value = ''; }
+    </script>
+</body>
+</html>
