@@ -1,0 +1,10 @@
+{
+    "name": "Run Backend",
+    "type": "python",
+    "request": "launch",
+    "module": "src.main",
+    "cwd": "${workspaceFolder}/backend",
+    "configurations": [
+    
+    ]
+}
