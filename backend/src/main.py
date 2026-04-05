@@ -126,6 +126,37 @@ async def disconnect(sid):
             cleanup_room_timers(room.code)
 
 
+# ── CORS Middleware for REST endpoints ─────────────────────
+# (Socket.IO handles its own CORS internally, but aiohttp REST routes need this)
+@web.middleware
+async def cors_middleware(request, handler):
+    """Add CORS headers to all HTTP responses."""
+    # Handle preflight OPTIONS requests
+    if request.method == "OPTIONS":
+        response = web.Response()
+    else:
+        try:
+            response = await handler(request)
+        except web.HTTPException as ex:
+            response = ex
+
+    # Determine allowed origin
+    origin = request.headers.get("Origin", "")
+    allowed_origins = config.CORS_ORIGINS if not config.DEBUG else ["*"]
+
+    if "*" in allowed_origins or origin in allowed_origins:
+        response.headers["Access-Control-Allow-Origin"] = origin or "*"
+    elif allowed_origins:
+        response.headers["Access-Control-Allow-Origin"] = allowed_origins[0]
+
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+    response.headers["Access-Control-Max-Age"] = "3600"
+    return response
+
+app.middlewares.append(cors_middleware)
+
+
 # ── REST API Endpoints (Health Check & Stats) ─────────────
 
 async def health_check(request):
