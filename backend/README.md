@@ -143,7 +143,102 @@ socket.on("connected", (data) => {
 });
 ```
 
-### Step 3: Room Management
+### Step 3: Quick Play / Play Online (No Room Code Needed!)
+
+This is the **"Play Online"** button — players get auto-matched with strangers.
+
+```javascript
+// ═══════════════════════════════════════════════════════════
+//  QUICK PLAY — click "Play Online" and get matched instantly
+//  No room code needed! Server finds or creates a room.
+// ═══════════════════════════════════════════════════════════
+function playOnline(playerName) {
+    socket.emit("quick_play", {
+        playerName: playerName,   // Display name
+        avatar: "😀"              // Emoji avatar
+    });
+}
+
+// ── You get placed into a room ──────────────────────────
+socket.on("quick_play_joined", (data) => {
+    if (data.success) {
+        console.log("Matched into room:", data.room.code);
+        console.log(data.message);
+        // "Waiting for players... (1/3 needed to start)"
+
+        // data.isNewRoom = true if you created a new room
+        // data.room = full room state (same as room_created/room_joined)
+
+        // Show lobby / waiting screen
+    }
+});
+
+// ── Waiting for more players ────────────────────────────
+socket.on("quick_play_waiting", (data) => {
+    console.log(data.message);
+    // "Waiting for 2 more players..."
+    // Update your UI: show player count and "waiting" animation
+});
+
+// ── Countdown started (enough players joined!) ──────────
+socket.on("quick_play_countdown", (data) => {
+    console.log(data.message);
+    // "Game starting in 10 seconds!"
+    // "Game starting in 9 seconds!"
+    // ...
+    // "Starting now!"
+
+    // Show a countdown timer in your UI
+    // data.seconds = remaining seconds (10, 9, 8, ...0)
+    updateCountdownUI(data.seconds);
+});
+
+// ── Countdown cancelled (players left) ──────────────────
+socket.on("quick_play_countdown_cancelled", (data) => {
+    console.log(data.message);
+    // "Not enough players, waiting for more..."
+    // Hide countdown, show waiting screen again
+});
+
+// ── Game auto-starts! ───────────────────────────────────
+// After countdown reaches 0, you'll receive the normal
+// game_started event (same as private rooms):
+socket.on("game_started", (data) => {
+    if (data.autoStarted) {
+        console.log("Game auto-started!");
+    }
+    // From here, everything works exactly the same as private rooms:
+    // game_word_choices, game_turn_start, draw_stroke, etc.
+});
+```
+
+**How Quick Play works behind the scenes:**
+```
+Player clicks "Play Online"
+        │
+        ▼
+  ┌─ Is there a public room with space? ─┐
+  │                                       │
+  YES                                     NO
+  │                                       │
+  ▼                                       ▼
+  Join that room                  Create new public room
+  │                                       │
+  └───────────────┬───────────────────────┘
+                  │
+                  ▼
+        3+ players joined?
+          │           │
+         YES          NO
+          │           │
+          ▼           ▼
+     10s countdown    Wait for more
+          │           players...
+          ▼
+    Game auto-starts!
+```
+
+### Step 4: Room Management (Private Rooms)
 
 ```javascript
 // ═══════════════════════════════════════════════════════════
@@ -256,7 +351,7 @@ socket.on("room_kicked", (data) => {
 });
 ```
 
-### Step 4: Game Flow
+### Step 5: Game Flow
 
 ```javascript
 // ═══════════════════════════════════════════════════════════
@@ -396,7 +491,7 @@ socket.on("game_cancelled", (data) => {
 });
 ```
 
-### Step 5: Drawing (Canvas)
+### Step 6: Drawing (Canvas)
 
 ```javascript
 // ═══════════════════════════════════════════════════════════
@@ -507,7 +602,7 @@ socket.on("draw_history", (data) => {
 });
 ```
 
-### Step 6: Chat & Guessing
+### Step 7: Chat & Guessing
 
 ```javascript
 // ═══════════════════════════════════════════════════════════
@@ -622,6 +717,16 @@ socket.on("chat_system", (data) => {
 | Server → Client | `chat_message` | `{playerName, message, type, avatar}` | Chat message (`type`: "chat", "close", "guessed_chat") |
 | Server → Client | `chat_system` | `{message, type}` | System message (`type`: "correct_guess", "close_guess") |
 
+### Quick Play Events
+
+| Direction | Event | Payload | Description |
+|-----------|-------|---------|-------------|
+| Client → Server | `quick_play` | `{playerName, avatar}` | Join matchmaking (play with strangers) |
+| Server → Client | `quick_play_joined` | `{success, isNewRoom, room, message}` | Placed into a public room |
+| Server → Client | `quick_play_waiting` | `{playerCount, needed, message}` | Waiting for more players |
+| Server → Client | `quick_play_countdown` | `{seconds, message}` | Auto-start countdown (10s → 0) |
+| Server → Client | `quick_play_countdown_cancelled` | `{message}` | Countdown cancelled (players left) |
+
 ### Connection Events
 
 | Direction | Event | Payload | Description |
@@ -634,10 +739,25 @@ socket.on("chat_system", (data) => {
 
 ```
  ┌──────────────────────────────────────────────────┐
+ │                 HOME SCREEN                       │
+ │                                                   │
+ │   ┌────────────────┐    ┌──────────────────┐     │
+ │   │  PLAY ONLINE   │    │  CREATE ROOM     │     │
+ │   │  (quick_play)  │    │  (room_create)   │     │
+ │   └───────┬────────┘    └────────┬─────────┘     │
+ │           │                      │               │
+ │     Auto-matched          Share code with        │
+ │     with strangers        friends (room_join)     │
+ │           │                      │               │
+ │           └──────────┬───────────┘               │
+ │                      ▼                           │
+ └──────────────────────────────────────────────────┘
+
+ ┌──────────────────────────────────────────────────┐
  │                    LOBBY                          │
- │  • Players join with room code                   │
- │  • Host configures settings                      │
- │  • Host clicks "Start" (min 2 players)           │
+ │  • Players join with room code OR auto-matched   │
+ │  • Host configures settings (private rooms)      │
+ │  • Host clicks Start / Auto-start countdown      │
  └────────────────────┬─────────────────────────────┘
                       │ game_start
                       ▼

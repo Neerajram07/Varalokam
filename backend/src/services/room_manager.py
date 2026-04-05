@@ -145,6 +145,91 @@ class RoomManager:
             for room in self._rooms.values()
         ]
 
+    # ── Quick Play / Matchmaking ──────────────────────────
+
+    def find_public_room(self) -> Optional[Room]:
+        """
+        Find an available public room for quick play matchmaking.
+        Returns the best room (most players but not full, still waiting).
+        """
+        candidates = [
+            room for room in self._rooms.values()
+            if room.is_public
+            and room.status == "waiting"
+            and not room.is_full
+        ]
+
+        if not candidates:
+            return None
+
+        # Pick the room with the most players (so games start faster)
+        candidates.sort(key=lambda r: r.player_count, reverse=True)
+        return candidates[0]
+
+    def quick_play(self, sid: str, name: str, avatar: str = "😀") -> tuple[bool, str, Optional[Room]]:
+        """
+        Quick play matchmaking — find or create a public room.
+
+        Logic:
+        1. Look for an existing public room that's waiting and not full
+        2. If found → join it
+        3. If not found → create a new public room
+
+        Returns:
+            (is_new_room, message, room)
+        """
+        # Check if player is already in a room
+        if sid in self._player_rooms:
+            existing = self.get_player_room(sid)
+            if existing:
+                return False, "You are already in a room. Leave first.", None
+
+        # Try to find an existing public room
+        room = self.find_public_room()
+
+        if room:
+            # Join existing public room
+            # Check for duplicate names — append number if needed
+            original_name = name
+            counter = 1
+            while any(p.name.lower() == name.lower() for p in room.players.values()):
+                counter += 1
+                name = f"{original_name}{counter}"
+
+            player = Player(sid=sid, name=name, avatar=avatar)
+            room.add_player(player)
+            self._player_rooms[sid] = room.code
+
+            logger.info(f"[QUICKPLAY] {name} ({sid}) joined public room {room.code} ({room.player_count}/{room.max_players})")
+            return False, "Joined public room", room
+
+        else:
+            # Create a new public room
+            room = Room(
+                host_sid=sid,
+                max_players=8,
+                rounds_total=3,
+                turn_duration=80,
+                is_public=True,
+                auto_start=True,
+                min_players_to_start=3,
+                auto_start_countdown=10,
+            )
+
+            # Ensure unique code
+            while room.code in self._rooms:
+                from .room import _generate_room_code
+                room.code = _generate_room_code()
+
+            player = Player(sid=sid, name=name, avatar=avatar)
+            room.add_player(player)
+
+            self._rooms[room.code] = room
+            self._player_rooms[sid] = room.code
+
+            logger.info(f"[QUICKPLAY] {name} ({sid}) created new public room {room.code}")
+            return True, "Created new public room", room
+
 
 # Singleton instance
 room_manager = RoomManager()

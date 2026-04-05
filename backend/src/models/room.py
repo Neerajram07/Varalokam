@@ -30,6 +30,12 @@ class Room:
     use_custom_words_only: bool = False
     created_at: float = field(default_factory=time.time)
 
+    # ── Quick Play / Public room settings ─────────────────
+    is_public: bool = False              # True = visible for quick play matchmaking
+    auto_start: bool = False             # True = auto-start when min_players_to_start reached
+    min_players_to_start: int = 3        # Auto-start threshold for public rooms
+    auto_start_countdown: int = 10       # Seconds to wait after threshold before starting
+
     # ── Player management ─────────────────────────────────
     players: dict[str, Player] = field(default_factory=dict)   # sid → Player
     player_order: list[str] = field(default_factory=list)      # ordered sids
@@ -155,6 +161,8 @@ class Room:
             "roundsTotal": self.rounds_total,
             "turnDuration": self.turn_duration,
             "status": self.status,
+            "isPublic": self.is_public,
+            "autoStart": self.auto_start,
             "currentRound": self.current_round,
             "currentDrawerSid": self.current_drawer_sid,
             "currentDrawerName": self.current_drawer.name if self.current_drawer else None,

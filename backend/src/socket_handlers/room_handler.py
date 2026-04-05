@@ -2,12 +2,14 @@
 Room Handler — Socket.IO events for room management.
 
 Events handled:
-  room:create   → Creates a new room, returns room code
-  room:join     → Joins an existing room by code
-  room:leave    → Leaves the current room
-  room:settings → Updates room settings (host only)
+  room:create     → Creates a new room, returns room code
+  room:join       → Joins an existing room by code
+  room:leave      → Leaves the current room
+  room:settings   → Updates room settings (host only)
+  quick_play      → Matchmaking: find or create a public room
 """
 
+import asyncio
 import logging
 import socketio
 
@@ -218,3 +220,145 @@ def register_room_handlers(sio: socketio.AsyncServer) -> None:
         }, room=room.code)
 
         logger.info(f"[{room.code}] {target_player.name} was kicked by host")
+
+    # ── Quick Play / Play Online ───────────────────────────
+
+    # Track auto-start countdown timers for public rooms
+    _auto_start_timers: dict[str, asyncio.Task] = {}
+
+    @sio.event
+    async def quick_play(sid, data):
+        """
+        Quick Play / Play Online — matchmaking without room codes.
+
+        The player clicks "Play Online" and is automatically placed
+        into an available public room, or a new one is created.
+
+        When enough players join (default 3), a 10-second countdown
+        starts and the game auto-starts.
+
+        Expected data:
+            { "playerName": str, "avatar": str }
+
+        Emits:
+            quick_play_joined   → to the player with room state
+            room_player_joined  → to others in the room
+            quick_play_countdown → countdown before auto-start
+            game_started         → when countdown finishes
+        """
+        player_name = data.get("playerName", "Player")
+        avatar = data.get("avatar", "😀")
+
+        # Use matchmaking to find or create a public room
+        is_new_room, message, room = room_manager.quick_play(
+            sid=sid,
+            name=player_name,
+            avatar=avatar,
+        )
+
+        if not room:
+            await sio.emit("room_error", {"message": message}, to=sid)
+            return
+
+        # Join the Socket.IO room for broadcasting
+        sio.enter_room(sid, room.code)
+
+        # Send room state to the new player
+        player = room.players[sid]
+        await sio.emit("quick_play_joined", {
+            "success": True,
+            "isNewRoom": is_new_room,
+            "room": room.to_dict(),
+            "message": f"Waiting for players... ({room.player_count}/{room.min_players_to_start} needed to start)",
+        }, to=sid)
+
+        # Notify other players in the room
+        if not is_new_room:
+            await sio.emit("room_player_joined", {
+                "player": player.to_dict(),
+                "playerCount": room.player_count,
+            }, room=room.code, skip_sid=sid)
+
+        logger.info(f"[QUICKPLAY][{room.code}] {player_name} joined ({room.player_count} players)")
+
+        # ── Auto-start logic ──────────────────────────────
+        if (
+            room.auto_start
+            and room.status == "waiting"
+            and room.player_count >= room.min_players_to_start
+            and room.code not in _auto_start_timers
+        ):
+            # Start countdown!
+            logger.info(f"[QUICKPLAY][{room.code}] Auto-start countdown ({room.auto_start_countdown}s)")
+
+            async def auto_start_countdown():
+                try:
+                    countdown = room.auto_start_countdown
+
+                    # Notify everyone about the countdown
+                    await sio.emit("quick_play_countdown", {
+                        "seconds": countdown,
+                        "message": f"Game starting in {countdown} seconds!",
+                    }, room=room.code)
+
+                    # Tick down
+                    for remaining in range(countdown, 0, -1):
+                        await asyncio.sleep(1)
+
+                        # Check if room still valid and has enough players
+                        if (
+                            room.status != "waiting"
+                            or room.player_count < 2
+                        ):
+                            await sio.emit("quick_play_countdown_cancelled", {
+                                "message": "Not enough players, waiting for more...",
+                            }, room=room.code)
+                            return
+
+                        # Send countdown tick every second
+                        await sio.emit("quick_play_countdown", {
+                            "seconds": remaining - 1,
+                            "message": f"Game starting in {remaining - 1} seconds!" if remaining > 1 else "Starting now!",
+                        }, room=room.code)
+
+                    # Auto-start the game!
+                    if room.status == "waiting" and room.player_count >= 2:
+                        room.status = "playing"
+                        room.current_round = 1
+                        room.current_drawer_index = 0
+
+                        for p in room.players.values():
+                            p.reset_for_game()
+
+                        await sio.emit("game_started", {
+                            "round": room.current_round,
+                            "totalRounds": room.rounds_total,
+                            "players": [room.players[s].to_dict() for s in room.player_order if s in room.players],
+                            "autoStarted": True,
+                        }, room=room.code)
+
+                        # Import here to avoid circular dependency
+                        from .game_handler import start_word_selection
+                        await start_word_selection(sio, room)
+
+                        logger.info(f"[QUICKPLAY][{room.code}] Game auto-started with {room.player_count} players!")
+
+                except asyncio.CancelledError:
+                    pass
+                finally:
+                    _auto_start_timers.pop(room.code, None)
+
+            _auto_start_timers[room.code] = asyncio.create_task(auto_start_countdown())
+
+        elif (
+            room.auto_start
+            and room.status == "waiting"
+            and room.player_count < room.min_players_to_start
+        ):
+            # Not enough players yet — send waiting message
+            needed = room.min_players_to_start - room.player_count
+            await sio.emit("quick_play_waiting", {
+                "playerCount": room.player_count,
+                "needed": needed,
+                "message": f"Waiting for {needed} more player{'s' if needed > 1 else ''}...",
+            }, room=room.code)
